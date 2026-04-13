@@ -26,16 +26,31 @@ This is a **MURB (Multi-Unit Residential Building) energy modelling database** f
 
 ```
 src/murb_db/
-├── __init__.py     — Package exports (query, viz functions)
-├── __main__.py     — Click CLI commands (init, ingest-rdh, tables, describe, query, schema-summary)
-├── config.py       — Path constants (PROJECT_ROOT, DB_PATH, RAW_DIR, etc.) and get_connection()
-├── parsers.py      — ★ CRITICAL: Custom parsers for RDH Excel workbooks (merged cells, multi-row headers, cost gap filling)
-├── ingest.py       — Generic ingestion pipeline (clean columns, detect types, dedup, hash tracking)
-├── schema.py       — DDL: creates _sources, _table_metadata; table creation helpers
-├── query.py        — Query helpers: query(), list_tables(), describe_table(), search_columns(), get_schema_summary()
-├── registry.py     — YAML-driven sheet-to-table mapping
-└── viz.py          — Visualization wrappers: bar_chart(), scatter(), timeseries()
+├── __init__.py          — Package exports (query, viz functions)
+├── __main__.py          — Click CLI commands (init, ingest-rdh, tables, describe, query, schema-summary, export-dashboard)
+├── config.py            — Path constants (PROJECT_ROOT, DB_PATH, RAW_DIR, etc.) and get_connection()
+├── parsers.py           — ★ CRITICAL: Custom parsers for RDH Excel workbooks (merged cells, multi-row headers, cost gap filling)
+├── ingest.py            — Generic ingestion pipeline (clean columns, detect types, dedup, hash tracking)
+├── schema.py            — DDL: creates _sources, _table_metadata; table creation helpers
+├── query.py             — Query helpers: query(), list_tables(), describe_table(), search_columns(), get_schema_summary()
+├── registry.py          — YAML-driven sheet-to-table mapping
+├── export_dashboard.py  — Exports database to docs/ (JSON + SQLite) for the GitHub Pages dashboard
+└── viz.py               — Visualization wrappers: bar_chart(), scatter(), timeseries()
 ```
+
+### Dashboard (docs/)
+
+```
+docs/
+├── index.html   — Single-file interactive dashboard (HTML + CSS + vanilla JS + Plotly.js)
+├── data.json    — All table data exported as JSON (~12 MB raw, ~1.4 MB gzipped)
+└── murb.db      — SQLite database copy for the SQL query tab (loaded via sql.js WASM)
+```
+
+- **Tech:** Vanilla HTML/JS with Plotly.js (CDN) for charts, sql.js (CDN, lazy-loaded) for the SQL tab
+- **Deployment:** GitHub Pages serves `docs/` from `main` branch via `.github/workflows/pages.yml`
+- **URL:** https://maxpr1me.github.io/halifax-rdh-data/
+- **Regenerate after data changes:** `murb-db export-dashboard`
 
 ### Database Tables
 
@@ -79,6 +94,11 @@ murb-db ingest-rdh "excel_sheets/Original File - HX only.xlsx" --force
 pytest
 ```
 
+### Export dashboard data (after data changes)
+```bash
+murb-db export-dashboard
+```
+
 ### Generate visualizations from Python
 ```python
 from murb_db import query, bar_chart
@@ -106,6 +126,7 @@ This is the most complex file. Key things to know:
 2. **Database lives at `data/processed/murb.db`** — also gitignored
 3. **Provenance tracking:** Every ingested file is hashed (SHA-256) and recorded in `_sources`. Re-ingesting the same file is skipped unless `--force` is used.
 4. **AI-readability:** `get_schema_summary()` produces a text description of the full schema designed for LLM consumption.
+5. **Dashboard data:** `docs/data.json` and `docs/murb.db` are committed to the repo. After re-ingesting workbooks, run `murb-db export-dashboard` to regenerate them.
 
 ---
 

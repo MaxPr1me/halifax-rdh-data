@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="en-CA">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Halifax MURB Energy Dashboard</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0f172a; --surface: #1e293b; --surface2: #334155;
+  --text: #e2e8f0; --text-dim: #94a3b8; --accent: #38bdf8;
+  --accent2: #818cf8; --border: #475569; --success: #34d399;
+  --warn: #fbbf24; --danger: #f87171;
+  --sidebar-w: 280px;
+}
+html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; }
+
+/* Header */
+.header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 12px 24px; display: flex; align-items: center; gap: 16px; }
+.header h1 { font-size: 18px; font-weight: 700; white-space: nowrap; }
+.header .subtitle { color: var(--text-dim); font-size: 13px; }
+
+/* Nav Tabs */
+.nav { display: flex; background: var(--surface); border-bottom: 2px solid var(--border); padding: 0 24px; gap: 0; }
+.nav button { background: none; border: none; color: var(--text-dim); padding: 10px 20px; font-size: 13px; font-weight: 600; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: color .15s, border-color .15s; }
+.nav button:hover { color: var(--text); }
+.nav button.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* Layout */
+.dashboard { display: grid; grid-template-columns: var(--sidebar-w) 1fr; height: calc(100vh - 90px); overflow: hidden; }
+@media (max-width: 900px) { .dashboard { grid-template-columns: 1fr; } .sidebar { max-height: 300px; } }
+
+/* Sidebar */
+.sidebar { background: var(--surface); border-right: 1px solid var(--border); overflow-y: auto; padding: 12px; }
+.sidebar h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-dim); margin-bottom: 8px; }
+.filter-count { font-size: 13px; color: var(--accent); font-weight: 600; margin-bottom: 12px; padding: 8px; background: var(--bg); border-radius: 6px; text-align: center; }
+.filter-group { margin-bottom: 10px; }
+.filter-group summary { cursor: pointer; font-size: 12px; font-weight: 600; color: var(--text); padding: 6px 0; list-style: none; display: flex; align-items: center; gap: 6px; }
+.filter-group summary::before { content: '\25B6'; font-size: 8px; transition: transform .15s; }
+.filter-group[open] summary::before { transform: rotate(90deg); }
+.filter-group .options { padding: 4px 0 4px 8px; }
+.filter-group label { display: flex; align-items: center; gap: 6px; font-size: 12px; padding: 2px 0; cursor: pointer; color: var(--text); }
+.filter-group label.disabled { color: var(--text-dim); opacity: .4; cursor: default; }
+.filter-group input[type="checkbox"] { accent-color: var(--accent); width: 14px; height: 14px; }
+.btn-reset { width: 100%; padding: 6px; font-size: 12px; background: var(--surface2); color: var(--text); border: 1px solid var(--border); border-radius: 4px; cursor: pointer; margin-top: 8px; }
+.btn-reset:hover { background: var(--border); }
+
+/* Main chart area */
+.main { overflow-y: auto; padding: 16px 24px; }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* Summary cards */
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
+.card .label { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-dim); margin-bottom: 4px; }
+.card .value { font-size: 22px; font-weight: 700; color: var(--accent); }
+.card .unit { font-size: 12px; color: var(--text-dim); margin-left: 4px; }
+
+/* Chart containers */
+.chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+.chart-full { margin-bottom: 16px; }
+.chart-box { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px; min-height: 350px; }
+.chart-box h4 { font-size: 13px; font-weight: 600; margin-bottom: 8px; color: var(--text-dim); }
+@media (max-width: 900px) { .chart-row { grid-template-columns: 1fr; } }
+
+/* LCCA toggles */
+.lcca-toggles { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 16px; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+.lcca-toggle { display: flex; flex-direction: column; gap: 4px; }
+.lcca-toggle .lbl { font-size: 11px; text-transform: uppercase; color: var(--text-dim); }
+.lcca-toggle .btns { display: flex; gap: 0; }
+.lcca-toggle .btns button { padding: 5px 12px; font-size: 12px; border: 1px solid var(--border); background: var(--surface2); color: var(--text-dim); cursor: pointer; }
+.lcca-toggle .btns button:first-child { border-radius: 4px 0 0 4px; }
+.lcca-toggle .btns button:last-child { border-radius: 0 4px 4px 0; }
+.lcca-toggle .btns button.active { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+.lcca-id { font-size: 13px; color: var(--accent); font-weight: 600; align-self: center; margin-left: 16px; }
+
+/* Metric toggle */
+.metric-toggle { display: flex; gap: 0; margin-bottom: 12px; }
+.metric-toggle button { padding: 5px 14px; font-size: 12px; border: 1px solid var(--border); background: var(--surface2); color: var(--text-dim); cursor: pointer; }
+.metric-toggle button:first-child { border-radius: 4px 0 0 4px; }
+.metric-toggle button:last-child { border-radius: 0 4px 4px 0; }
+.metric-toggle button.active { background: var(--accent2); color: #fff; border-color: var(--accent2); }
+
+/* SQL tab */
+.sql-layout { display: grid; grid-template-columns: 200px 1fr; gap: 16px; }
+@media (max-width: 900px) { .sql-layout { grid-template-columns: 1fr; } }
+.schema-browser { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px; overflow-y: auto; max-height: calc(100vh - 160px); }
+.schema-browser h4 { font-size: 12px; text-transform: uppercase; color: var(--text-dim); margin-bottom: 8px; }
+.schema-table { margin-bottom: 8px; }
+.schema-table summary { cursor: pointer; font-size: 12px; font-weight: 600; color: var(--accent); padding: 3px 0; }
+.schema-table .col { font-size: 11px; color: var(--text-dim); padding: 1px 0 1px 12px; cursor: pointer; }
+.schema-table .col:hover { color: var(--accent); }
+.sql-main { display: flex; flex-direction: column; gap: 10px; }
+.sql-controls { display: flex; gap: 8px; align-items: flex-start; flex-wrap: wrap; }
+.sql-controls select { flex: 1; min-width: 200px; padding: 6px 8px; font-size: 12px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 4px; }
+.sql-controls button { padding: 6px 16px; font-size: 12px; font-weight: 600; border: none; border-radius: 4px; cursor: pointer; white-space: nowrap; }
+.btn-run { background: var(--accent); color: var(--bg); }
+.btn-run:hover { opacity: .9; }
+.btn-csv { background: var(--surface2); color: var(--text); border: 1px solid var(--border) !important; }
+#sql-input { width: 100%; min-height: 100px; padding: 10px; font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 13px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; resize: vertical; }
+.sql-status { font-size: 12px; color: var(--text-dim); }
+.sql-error { font-size: 12px; color: var(--danger); background: rgba(248,113,113,.1); padding: 8px; border-radius: 4px; }
+.sql-results { overflow-x: auto; }
+.sql-results table { border-collapse: collapse; font-size: 12px; width: 100%; }
+.sql-results th { background: var(--surface2); color: var(--text); padding: 6px 10px; text-align: left; border: 1px solid var(--border); white-space: nowrap; position: sticky; top: 0; }
+.sql-results td { padding: 4px 10px; border: 1px solid var(--border); color: var(--text-dim); max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sql-results tr:hover td { background: var(--surface); }
+
+/* Ref table */
+.ref-table-wrap { overflow-x: auto; margin-top: 16px; }
+.ref-table-wrap table { border-collapse: collapse; font-size: 12px; width: 100%; }
+.ref-table-wrap th { background: var(--surface2); color: var(--text); padding: 6px 10px; text-align: left; border: 1px solid var(--border); }
+.ref-table-wrap td { padding: 4px 10px; border: 1px solid var(--border); color: var(--text-dim); }
+
+/* Loading */
+.loading { display: flex; align-items: center; justify-content: center; height: 200px; color: var(--text-dim); font-size: 14px; }
+.spinner { width: 24px; height: 24px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .6s linear infinite; margin-right: 10px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Halifax MURB Energy Dashboard</h1>
+  <span class="subtitle">Multi-Unit Residential Building Energy Optimization Explorer</span>
+</div>
+
+<nav class="nav" id="nav">
+  <button class="active" data-tab="energy">Energy Comparison</button>
+  <button data-tab="cost">Cost Optimization</button>
+  <button data-tab="lcca">LCCA Explorer</button>
+  <button data-tab="sql">SQL Query</button>
+</nav>
+
+<div class="dashboard">
+  <aside class="sidebar" id="sidebar">
+    <div class="filter-count" id="filter-count">Loading...</div>
+    <h3>Filters</h3>
+    <div id="filter-container"></div>
+    <button class="btn-reset" id="btn-reset">Reset All Filters</button>
+  </aside>
+
+  <div class="main">
+    <!-- Tab 1: Energy -->
+    <div class="tab-content active" id="tab-energy">
+      <div class="cards" id="energy-cards"></div>
+      <div class="chart-full"><div class="chart-box"><h4>TEUI vs GHG Intensity</h4><div id="chart-scatter-energy"></div></div></div>
+      <div class="chart-row">
+        <div class="chart-box"><h4>TEUI Distribution by HVAC System</h4><div id="chart-box-teui"></div></div>
+        <div class="chart-box"><h4>End-Use Energy Breakdown</h4><div id="chart-enduse"></div></div>
+      </div>
+      <div class="chart-full"><div class="chart-box"><h4>TEDI by Enclosure</h4><div id="chart-tedi-enclosure"></div></div></div>
+    </div>
+
+    <!-- Tab 2: Cost -->
+    <div class="tab-content" id="tab-cost">
+      <div class="cards" id="cost-cards"></div>
+      <div class="metric-toggle" id="cost-metric-toggle">
+        <button class="active" data-metric="teui_adjusted_kwh_m2a">TEUI</button>
+        <button data-metric="ghgi_kg_co2e_m2a">GHGI</button>
+        <button data-metric="tedi_kwh_m2a">TEDI</button>
+      </div>
+      <div class="chart-full"><div class="chart-box"><h4>Cost vs Energy Performance (Pareto)</h4><div id="chart-pareto"></div></div></div>
+      <div class="chart-row">
+        <div class="chart-box"><h4>Cost Breakdown by HVAC System</h4><div id="chart-cost-stack"></div></div>
+        <div class="chart-box"><h4>NPV vs Capital Cost</h4><div id="chart-npv-cap"></div></div>
+      </div>
+      <div class="chart-full"><div class="chart-box"><h4>Total Cost by Enclosure Options</h4><div id="chart-cost-enclosure"></div></div></div>
+    </div>
+
+    <!-- Tab 3: LCCA -->
+    <div class="tab-content" id="tab-lcca">
+      <div class="lcca-toggles" id="lcca-toggles">
+        <div class="lcca-toggle"><span class="lbl">PV Generation</span><div class="btns" data-lcca="pv"><button class="active" data-val="NO">No</button><button data-val="YES">Yes</button></div></div>
+        <div class="lcca-toggle"><span class="lbl">DHW Heat Recovery</span><div class="btns" data-lcca="dhw_hr"><button class="active" data-val="NO">No</button><button data-val="YES">Yes</button></div></div>
+        <div class="lcca-toggle"><span class="lbl">Window Type</span><div class="btns" data-lcca="win"><button class="active" data-val="Non-vinyl">Non-vinyl</button><button data-val="Vinyl">Vinyl</button></div></div>
+        <div class="lcca-toggle"><span class="lbl">Ventilation</span><div class="btns" data-lcca="vent"><button class="active" data-val="In-suite ERVs">In-suite ERVs</button><button data-val="Centralized heat recovery">Centralized</button></div></div>
+        <span class="lcca-id" id="lcca-active-id">LCCA1</span>
+      </div>
+      <div class="cards" id="lcca-cards"></div>
+      <div class="chart-full"><div class="chart-box"><h4>NPV vs Incremental Cost</h4><div id="chart-lcca-scatter"></div></div></div>
+      <div class="chart-row">
+        <div class="chart-box"><h4>50-Year Energy Cost Savings by HVAC</h4><div id="chart-lcca-savings"></div></div>
+        <div class="chart-box"><h4>LCCA Scenario Comparison</h4><div id="chart-lcca-compare"></div></div>
+      </div>
+      <div class="chart-full"><div class="chart-box"><h4>Named Reference Scenarios</h4><div class="ref-table-wrap" id="lcca-ref-table"></div></div></div>
+    </div>
+
+    <!-- Tab 4: SQL -->
+    <div class="tab-content" id="tab-sql">
+      <div class="sql-layout">
+        <div class="schema-browser" id="schema-browser"><h4>Schema</h4><div class="loading"><div class="spinner"></div>Load SQL tab first</div></div>
+        <div class="sql-main">
+          <div class="sql-controls">
+            <select id="sql-examples">
+              <option value="">-- Example queries --</option>
+              <option value="SELECT heating_cooling_system, ROUND(AVG(teui_adjusted_kwh_m2a), 1) AS avg_teui, ROUND(AVG(ghgi_kg_co2e_m2a), 1) AS avg_ghgi FROM energy_scenarios GROUP BY heating_cooling_system ORDER BY avg_teui">Avg TEUI &amp; GHGI by HVAC</option>
+              <option value="SELECT heating_cooling_system, demand_scenario, walls, windows, airtightness, ROUND(total_cost) AS cost, ROUND(teui_adjusted_kwh_m2a, 1) AS teui FROM energy_scenarios ORDER BY total_cost LIMIT 20">Cheapest 20 scenarios</option>
+              <option value="SELECT heating_cooling_system, dhw_system_type, walls, windows, airtightness, ROUND(teui_adjusted_kwh_m2a, 1) AS teui, ROUND(ghgi_kg_co2e_m2a, 1) AS ghgi FROM energy_scenarios WHERE ghgi_kg_co2e_m2a < 15 ORDER BY ghgi_kg_co2e_m2a">Lowest GHG scenarios (&lt;15)</option>
+              <option value="SELECT l.lcca_id, e.heating_cooling_system, MIN(l.npv) AS best_npv, ROUND(AVG(l.energy_cost_savings_50yr)) AS avg_savings FROM lcca_results l JOIN energy_scenarios e ON CAST(l.description AS INTEGER) = e.scenario_id WHERE l.scenario_id IS NOT NULL GROUP BY l.lcca_id, e.heating_cooling_system ORDER BY l.lcca_id, best_npv DESC">Best NPV per HVAC per LCCA</option>
+              <option value="SELECT * FROM building_info">Building info</option>
+              <option value="SELECT * FROM lcca_assumptions">LCCA assumptions</option>
+              <option value="SELECT name, sql FROM sqlite_master WHERE type='table' AND name NOT LIKE '_%' ORDER BY name">Full schema DDL</option>
+            </select>
+            <button class="btn-run" id="btn-run">Run (Ctrl+Enter)</button>
+            <button class="btn-csv btn-run" id="btn-csv" style="display:none">Download CSV</button>
+          </div>
+          <textarea id="sql-input" placeholder="Enter SQL query...">SELECT heating_cooling_system, ROUND(AVG(teui_adjusted_kwh_m2a), 1) AS avg_teui, ROUND(AVG(ghgi_kg_co2e_m2a), 1) AS avg_ghgi FROM energy_scenarios GROUP BY heating_cooling_system ORDER BY avg_teui</textarea>
+          <div id="sql-status" class="sql-status"></div>
+          <div id="sql-output" class="sql-results" style="max-height: 500px; overflow-y: auto;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const D = {
+  // ---- Data & State ----
+  data: {}, meta: {}, filters: {},
+  state: { tab: 'energy', sqlReady: false, db: null, costMetric: 'teui_adjusted_kwh_m2a', lastSqlResults: null },
+
+  HVAC_COLORS: {
+    'FCU': '#1f77b4', 'FCU+': '#aec7e8', 'PTHP': '#ff7f0e', 'ASHP': '#2ca02c',
+    'GSHP': '#d62728', 'VRF': '#9467bd', 'WLHP': '#8c564b', 'WLHP+': '#e377c2'
+  },
+  HVAC_ORDER: ['FCU', 'FCU+', 'PTHP', 'ASHP', 'GSHP', 'VRF', 'WLHP', 'WLHP+'],
+  FILTER_LABELS: {
+    heating_cooling_system: 'HVAC System',
+    demand_scenario: 'Demand Scenario',
+    dhw_system_type: 'DHW System',
+    walls: 'Wall Insulation',
+    windows: 'Window Type',
+    airtightness: 'Airtightness'
+  },
+  FILTER_ORDER: ['heating_cooling_system', 'demand_scenario', 'dhw_system_type', 'walls', 'windows', 'airtightness'],
+  PLOTLY_LAYOUT: { paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: '#0f172a', font: { color: '#e2e8f0', size: 11 }, margin: { l: 60, r: 20, t: 10, b: 50 }, xaxis: { gridcolor: '#334155', zerolinecolor: '#475569' }, yaxis: { gridcolor: '#334155', zerolinecolor: '#475569' }, legend: { bgcolor: 'rgba(0,0,0,0)', font: { size: 11 } } },
+  PLOTLY_CFG: { responsive: true, displayModeBar: true, modeBarButtonsToRemove: ['lasso2d', 'select2d'], displaylogo: false },
+
+  // ---- Init ----
+  async init() {
+    try {
+      const resp = await fetch('data.json');
+      const raw = await resp.json();
+      this.data = raw.tables;
+      this.meta = raw.metadata;
+    } catch (e) {
+      document.querySelector('.main').innerHTML = '<div class="loading" style="color:var(--danger)">Failed to load data.json. Ensure you are serving this file via HTTP (not file://).</div>';
+      return;
+    }
+    this.buildFilters();
+    this.bindTabs();
+    this.bindLcca();
+    this.bindCostMetric();
+    this.bindSql();
+    this.applyAndRender();
+  },
+
+  // ---- Filtering ----
+  buildFilters() {
+    const container = document.getElementById('filter-container');
+    container.innerHTML = '';
+    for (const dim of this.FILTER_ORDER) {
+      const vals = this.meta.filter_dimensions[dim] || [];
+      this.filters[dim] = [];
+      const det = document.createElement('details');
+      det.className = 'filter-group';
+      det.open = true;
+      det.innerHTML = `<summary>${this.FILTER_LABELS[dim]} <span style="color:var(--text-dim);font-weight:400">(${vals.length})</span></summary><div class="options" data-dim="${dim}"></div>`;
+      const opts = det.querySelector('.options');
+      for (const v of vals) {
+        const lbl = document.createElement('label');
+        const cb = document.createElement('input');
+        cb.type = 'checkbox'; cb.value = v; cb.dataset.dim = dim;
+        cb.addEventListener('change', () => this.onFilterChange(dim));
+        lbl.appendChild(cb);
+        lbl.appendChild(document.createTextNode(' ' + v));
+        opts.appendChild(lbl);
+      }
+      container.appendChild(det);
+    }
+    document.getElementById('btn-reset').addEventListener('click', () => this.resetFilters());
+  },
+
+  onFilterChange(changedDim) {
+    // Read current checkbox state
+    const opts = document.querySelector(`.options[data-dim="${changedDim}"]`);
+    const checked = [...opts.querySelectorAll('input:checked')].map(cb => cb.value);
+    this.filters[changedDim] = checked;
+    this.crossFilter();
+    this.renderActiveTab();
+  },
+
+  crossFilter() {
+    const es = this.data.energy_scenarios;
+    for (const dim of this.FILTER_ORDER) {
+      const other = {};
+      for (const d of this.FILTER_ORDER) { if (d !== dim) other[d] = this.filters[d]; }
+      const subset = this.filterRows(es, other);
+      const available = new Set(subset.map(r => r[dim]));
+      const opts = document.querySelector(`.options[data-dim="${dim}"]`);
+      for (const lbl of opts.querySelectorAll('label')) {
+        const cb = lbl.querySelector('input');
+        const avail = available.has(cb.value);
+        cb.disabled = !avail;
+        lbl.classList.toggle('disabled', !avail);
+      }
+      // Prune invalid selections
+      this.filters[dim] = this.filters[dim].filter(v => available.has(v));
+    }
+    this.updateCount();
+  },
+
+  filterRows(data, filters) {
+    if (!filters) filters = this.filters;
+    return data.filter(r => {
+      for (const dim of this.FILTER_ORDER) {
+        const sel = filters[dim];
+        if (sel && sel.length > 0 && !sel.includes(r[dim])) return false;
+      }
+      return true;
+    });
+  },
+
+  getFiltered() { return this.filterRows(this.data.energy_scenarios); },
+
+  updateCount() {
+    const n = this.getFiltered().length;
+    const total = this.data.energy_scenarios.length;
+    document.getElementById('filter-count').textContent = `${n} of ${total} scenarios`;
+  },
+
+  resetFilters() {
+    for (const dim of this.FILTER_ORDER) this.filters[dim] = [];
+    document.querySelectorAll('#filter-container input[type=checkbox]').forEach(cb => { cb.checked = false; cb.disabled = false; });
+    document.querySelectorAll('#filter-container label').forEach(l => l.classList.remove('disabled'));
+    this.updateCount();
+    this.renderActiveTab();
+  },
+
+  applyAndRender() { this.crossFilter(); this.renderActiveTab(); },
+
+  // ---- Tabs ----
+  bindTabs() {
+    document.querySelectorAll('#nav button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#nav button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+        const tab = btn.dataset.tab;
+        document.getElementById('tab-' + tab).classList.add('active');
+        this.state.tab = tab;
+        // Show/hide sidebar for SQL tab
+        document.getElementById('sidebar').style.display = tab === 'sql' ? 'none' : '';
+        if (tab === 'sql' && !this.state.sqlReady) this.initSql();
+        this.renderActiveTab();
+      });
+    });
+  },
+
+  renderActiveTab() {
+    const t = this.state.tab;
+    if (t === 'energy') this.renderEnergy();
+    else if (t === 'cost') this.renderCost();
+    else if (t === 'lcca') this.renderLcca();
+  },
+
+  // ---- Helpers ----
+  mean(arr) { if (!arr.length) return 0; return arr.reduce((a, b) => a + b, 0) / arr.length; },
+  fmt$(n) { if (Math.abs(n) >= 1e6) return '$' + (n / 1e6).toFixed(2) + 'M'; return '$' + Math.round(n).toLocaleString(); },
+  fmtK(n) { return n.toFixed(1); },
+  groupBy(arr, key) {
+    const m = {};
+    for (const r of arr) { const k = r[key]; (m[k] = m[k] || []).push(r); }
+    return m;
+  },
+  layout(overrides) { return Object.assign({}, JSON.parse(JSON.stringify(this.PLOTLY_LAYOUT)), overrides); },
+
+  // ---- Tab 1: Energy ----
+  renderEnergy() {
+    const rows = this.getFiltered();
+    // Cards
+    document.getElementById('energy-cards').innerHTML = this.makeCards([
+      { label: 'Scenarios', value: rows.length, unit: '' },
+      { label: 'Avg TEUI', value: this.fmtK(this.mean(rows.map(r => r.teui_adjusted_kwh_m2a))), unit: 'kWh/m\u00B2a' },
+      { label: 'Avg GHGI', value: this.fmtK(this.mean(rows.map(r => r.ghgi_kg_co2e_m2a))), unit: 'kgCO\u2082e/m\u00B2a' },
+      { label: 'Avg TEDI', value: this.fmtK(this.mean(rows.map(r => r.tedi_kwh_m2a))), unit: 'kWh/m\u00B2a' }
+    ]);
+
+    // Scatter: TEUI vs GHGI
+    const byHvac = this.groupBy(rows, 'heating_cooling_system');
+    const scatterTraces = this.HVAC_ORDER.filter(h => byHvac[h]).map(h => {
+      const d = byHvac[h];
+      return {
+        x: d.map(r => r.teui_adjusted_kwh_m2a), y: d.map(r => r.ghgi_kg_co2e_m2a),
+        mode: 'markers', type: 'scattergl', name: h,
+        marker: { color: this.HVAC_COLORS[h], opacity: 0.6, size: 7 },
+        text: d.map(r => `${h} | ${r.dhw_system_type} DHW<br>${r.walls}<br>${r.windows}<br>${r.airtightness} | ${r.demand_scenario}`),
+        hovertemplate: '%{text}<br>TEUI: %{x:.1f}<br>GHGI: %{y:.1f}<extra></extra>'
+      };
+    });
+    // Reference models overlay (use 'teui' and 'ghgi' column names for ref models)
+    const refs = this.data.reference_models;
+    if (refs && refs.length) {
+      scatterTraces.push({
+        x: refs.map(r => r.teui || r.teui_adjusted_kwh_m2a), y: refs.map(r => r.ghgi || r.ghgi_kg_co2e_m2a),
+        mode: 'markers', type: 'scattergl', name: 'Reference Models',
+        marker: { color: '#fbbf24', symbol: 'diamond', size: 14, opacity: 1, line: { color: '#fff', width: 1 } },
+        text: refs.map(r => `REF: ${r.heating_cooling_system} | ${r.dhw_system_type} DHW`),
+        hovertemplate: '%{text}<br>TEUI: %{x:.1f}<br>GHGI: %{y:.1f}<extra></extra>'
+      });
+    }
+    Plotly.react('chart-scatter-energy', scatterTraces, this.layout({ xaxis: { title: 'TEUI (kWh/m\u00B2a)', gridcolor: '#334155' }, yaxis: { title: 'GHGI (kgCO\u2082e/m\u00B2a)', gridcolor: '#334155' }, height: 400 }), this.PLOTLY_CFG);
+
+    // Box plot: TEUI by HVAC
+    const boxTraces = this.HVAC_ORDER.filter(h => byHvac[h]).map(h => ({
+      y: byHvac[h].map(r => r.teui_adjusted_kwh_m2a),
+      type: 'box', name: h, marker: { color: this.HVAC_COLORS[h] },
+      boxpoints: 'all', jitter: 0.3, pointpos: 0
+    }));
+    Plotly.react('chart-box-teui', boxTraces, this.layout({ yaxis: { title: 'TEUI (kWh/m\u00B2a)', gridcolor: '#334155' }, height: 350, showlegend: false }), this.PLOTLY_CFG);
+
+    // End-use stacked bar
+    const endUse = [
+      { col: 'gas_eui_heating', label: 'Gas Heating', color: '#ff7f0e' },
+      { col: 'gas_eui_dhw_no_hr', label: 'Gas DHW', color: '#ffbb78' },
+      { col: 'elec_eui_heating', label: 'Elec Heating', color: '#1f77b4' },
+      { col: 'elec_eui_dhw_no_hr', label: 'Elec DHW', color: '#aec7e8' },
+      { col: 'elec_eui_cooling', label: 'Cooling', color: '#17becf' },
+      { col: 'elec_eui_lighting', label: 'Lighting', color: '#bcbd22' },
+      { col: 'elec_eui_plug_loads', label: 'Plug Loads', color: '#7f7f7f' },
+      { col: 'elec_eui_pumps', label: 'Pumps+Fans', color: '#c5b0d5' }
+    ];
+    const hvacs = this.HVAC_ORDER.filter(h => byHvac[h]);
+    const endTraces = endUse.map(eu => ({
+      x: hvacs, y: hvacs.map(h => { const d = byHvac[h]; return this.mean(d.map(r => (r[eu.col] || 0) + (eu.col === 'elec_eui_pumps' ? (r.elec_eui_fans || 0) + (r.elec_eui_heat_rejection || 0) : 0))); }),
+      type: 'bar', name: eu.label, marker: { color: eu.color }
+    }));
+    Plotly.react('chart-enduse', endTraces, this.layout({ barmode: 'stack', yaxis: { title: 'Avg EUI (kWh/m\u00B2a)', gridcolor: '#334155' }, height: 350 }), this.PLOTLY_CFG);
+
+    // TEDI by enclosure
+    const byWalls = this.groupBy(rows, 'walls');
+    const atLevels = ['Code', 'Air Tight', 'Passive House'];
+    const atColors = ['#38bdf8', '#818cf8', '#a78bfa'];
+    const wallKeys = ['4" exterior insulation', '6" exterior insulation', '8" exterior insulation'].filter(w => byWalls[w]);
+    const tediTraces = atLevels.map((at, i) => ({
+      x: wallKeys, y: wallKeys.map(w => { const sub = (byWalls[w] || []).filter(r => r.airtightness === at); return sub.length ? this.mean(sub.map(r => r.tedi_kwh_m2a)) : 0; }),
+      type: 'bar', name: at, marker: { color: atColors[i] }
+    }));
+    Plotly.react('chart-tedi-enclosure', tediTraces, this.layout({ barmode: 'group', yaxis: { title: 'Avg TEDI (kWh/m\u00B2a)', gridcolor: '#334155' }, height: 320 }), this.PLOTLY_CFG);
+  },
+
+  // ---- Tab 2: Cost ----
+  bindCostMetric() {
+    document.querySelectorAll('#cost-metric-toggle button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#cost-metric-toggle button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.state.costMetric = btn.dataset.metric;
+        if (this.state.tab === 'cost') this.renderCost();
+      });
+    });
+  },
+
+  renderCost() {
+    const rows = this.getFiltered();
+    const costs = rows.map(r => r.total_cost).filter(v => v != null);
+    document.getElementById('cost-cards').innerHTML = this.makeCards([
+      { label: 'Avg Total Cost', value: this.fmt$(this.mean(costs)), unit: '' },
+      { label: 'Cost Range', value: costs.length ? this.fmt$(Math.min(...costs)) + ' \u2013 ' + this.fmt$(Math.max(...costs)) : 'N/A', unit: '' },
+      { label: 'Avg Energy Cost/yr', value: this.fmt$(this.mean(rows.map(r => r.energy_cost_first_year))), unit: '' },
+      { label: 'Avg 50yr NPV', value: this.fmt$(this.mean(rows.map(r => r.npv))), unit: '' }
+    ]);
+
+    const byHvac = this.groupBy(rows, 'heating_cooling_system');
+    const metric = this.state.costMetric;
+    const metricLabels = { teui_adjusted_kwh_m2a: 'TEUI (kWh/m\u00B2a)', ghgi_kg_co2e_m2a: 'GHGI (kgCO\u2082e/m\u00B2a)', tedi_kwh_m2a: 'TEDI (kWh/m\u00B2a)' };
+
+    // Pareto scatter
+    const paretoTraces = this.HVAC_ORDER.filter(h => byHvac[h]).map(h => {
+      const d = byHvac[h];
+      return {
+        x: d.map(r => r.total_cost), y: d.map(r => r[metric]),
+        mode: 'markers', type: 'scattergl', name: h,
+        marker: { color: this.HVAC_COLORS[h], opacity: 0.6, size: 7 },
+        text: d.map(r => `${h} | ${r.walls}<br>${r.windows} | ${r.airtightness}`),
+        hovertemplate: '%{text}<br>Cost: $%{x:,.0f}<br>' + metricLabels[metric].split(' (')[0] + ': %{y:.1f}<extra></extra>'
+      };
+    });
+    Plotly.react('chart-pareto', paretoTraces, this.layout({ xaxis: { title: 'Total Capital Cost ($)', gridcolor: '#334155' }, yaxis: { title: metricLabels[metric], gridcolor: '#334155' }, height: 400 }), this.PLOTLY_CFG);
+
+    // Cost breakdown stacked bar
+    const hvacs = this.HVAC_ORDER.filter(h => byHvac[h]);
+    const costParts = [
+      { col: 'enclosure_cost', label: 'Enclosure', color: '#38bdf8' },
+      { col: 'heating_cooling_system_cost', label: 'HVAC', color: '#f87171' },
+      { col: 'dhw_system_cost', label: 'DHW', color: '#fbbf24' },
+      { col: 'ventilation_system_cost', label: 'Ventilation', color: '#34d399' }
+    ];
+    const costTraces = costParts.map(cp => ({
+      x: hvacs, y: hvacs.map(h => this.mean((byHvac[h] || []).map(r => r[cp.col] || 0))),
+      type: 'bar', name: cp.label, marker: { color: cp.color }
+    }));
+    Plotly.react('chart-cost-stack', costTraces, this.layout({ barmode: 'stack', yaxis: { title: 'Avg Cost ($)', gridcolor: '#334155' }, height: 350 }), this.PLOTLY_CFG);
+
+    // NPV vs Capital
+    const npvTraces = this.HVAC_ORDER.filter(h => byHvac[h]).map(h => {
+      const d = byHvac[h];
+      return {
+        x: d.map(r => r.total_cost), y: d.map(r => r.npv),
+        mode: 'markers', type: 'scattergl', name: h,
+        marker: { color: this.HVAC_COLORS[h], opacity: 0.6, size: 7 },
+        hovertemplate: h + '<br>Capital: $%{x:,.0f}<br>NPV: $%{y:,.0f}<extra></extra>'
+      };
+    });
+    Plotly.react('chart-npv-cap', npvTraces, this.layout({ xaxis: { title: 'Total Capital Cost ($)', gridcolor: '#334155' }, yaxis: { title: '50yr NPV ($)', gridcolor: '#334155' }, height: 350 }), this.PLOTLY_CFG);
+
+    // Cost by enclosure
+    const byWalls = this.groupBy(rows, 'walls');
+    const winTypes = this.meta.filter_dimensions.windows || [];
+    const winColors = ['#38bdf8', '#818cf8', '#a78bfa', '#f472b6', '#fb923c'];
+    const wallKeys = ['4" exterior insulation', '6" exterior insulation', '8" exterior insulation'].filter(w => byWalls[w]);
+    const encTraces = winTypes.map((wt, i) => ({
+      x: wallKeys, y: wallKeys.map(w => { const sub = (byWalls[w] || []).filter(r => r.windows === wt); return sub.length ? this.mean(sub.map(r => r.total_cost)) : 0; }),
+      type: 'bar', name: wt.replace(', ', '\n'), marker: { color: winColors[i % winColors.length] }
+    }));
+    Plotly.react('chart-cost-enclosure', encTraces, this.layout({ barmode: 'group', yaxis: { title: 'Avg Total Cost ($)', gridcolor: '#334155' }, height: 320 }), this.PLOTLY_CFG);
+  },
+
+  // ---- Tab 3: LCCA ----
+  lccaState: { pv: 'NO', dhw_hr: 'NO', win: 'Non-vinyl', vent: 'In-suite ERVs' },
+
+  bindLcca() {
+    document.querySelectorAll('.lcca-toggle .btns').forEach(grp => {
+      const key = grp.dataset.lcca;
+      grp.querySelectorAll('button').forEach(btn => {
+        btn.addEventListener('click', () => {
+          grp.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          this.lccaState[key] = btn.dataset.val;
+          if (this.state.tab === 'lcca') this.renderLcca();
+        });
+      });
+    });
+  },
+
+  getLccaId() {
+    const scenarios = this.data.lcca_scenarios;
+    if (!scenarios) return 'LCCA1';
+    const match = scenarios.find(s =>
+      s.pv_generation === this.lccaState.pv &&
+      s.dhw_heat_recovery === this.lccaState.dhw_hr &&
+      (s.window_type === this.lccaState.win || (this.lccaState.win === 'Vinyl' && (s.window_type === 'Vinyl' || s.window_type === 'VInyl'))) &&
+      s.ventilation_hr === this.lccaState.vent
+    );
+    return match ? match.lcca_id : 'LCCA1';
+  },
+
+  renderLcca() {
+    const lccaId = this.getLccaId();
+    document.getElementById('lcca-active-id').textContent = lccaId;
+
+    const esFiltered = this.getFiltered();
+    const esIds = new Set(esFiltered.map(r => r.scenario_id));
+
+    // Filter LCCA results for this scenario
+    const lccaAll = this.data.lcca_results || [];
+    const lccaRows = lccaAll.filter(r => r.lcca_id === lccaId && r.scenario_id != null && esIds.has(r.scenario_id));
+    const lccaNamed = lccaAll.filter(r => r.lcca_id === lccaId && r.scenario_id == null);
+
+    // Build lookup for energy_scenarios by scenario_id
+    const esMap = {};
+    for (const r of esFiltered) esMap[r.scenario_id] = r;
+
+    // Cards
+    const npvs = lccaRows.map(r => r.npv).filter(v => v != null);
+    const savings = lccaRows.map(r => r.energy_cost_savings_50yr).filter(v => v != null);
+    document.getElementById('lcca-cards').innerHTML = this.makeCards([
+      { label: 'LCCA Scenarios', value: lccaRows.length, unit: '' },
+      { label: 'Avg NPV (50yr)', value: npvs.length ? this.fmt$(this.mean(npvs)) : 'N/A', unit: '' },
+      { label: 'Avg Incremental Cost', value: lccaRows.length ? this.fmt$(this.mean(lccaRows.map(r => r.incremental_cost || 0))) : 'N/A', unit: '' },
+      { label: 'Avg 50yr Savings', value: savings.length ? this.fmt$(this.mean(savings)) : 'N/A', unit: '' }
+    ]);
+
+    // Scatter: NPV vs Incremental Cost
+    const withHvac = lccaRows.map(r => ({ ...r, hvac: (esMap[r.scenario_id] || {}).heating_cooling_system || 'Unknown' }));
+    const byHvac = this.groupBy(withHvac, 'hvac');
+    const scatterTraces = this.HVAC_ORDER.filter(h => byHvac[h]).map(h => {
+      const d = byHvac[h];
+      return {
+        x: d.map(r => r.incremental_cost), y: d.map(r => r.npv),
+        mode: 'markers', type: 'scattergl', name: h,
+        marker: { color: this.HVAC_COLORS[h], opacity: 0.6, size: 7 },
+        hovertemplate: h + '<br>Incr Cost: $%{x:,.0f}<br>NPV: $%{y:,.0f}<extra></extra>'
+      };
+    });
+    // Add quadrant reference lines
+    const shapes = [
+      { type: 'line', x0: 0, x1: 0, y0: 0, y1: 1, yref: 'paper', line: { color: '#475569', dash: 'dash', width: 1 } }
+    ];
+    Plotly.react('chart-lcca-scatter', scatterTraces, this.layout({ xaxis: { title: 'Incremental Cost vs Baseline ($)', gridcolor: '#334155' }, yaxis: { title: 'NPV (50yr, $)', gridcolor: '#334155' }, height: 400, shapes }), this.PLOTLY_CFG);
+
+    // Box: Energy savings by HVAC
+    const savingsTraces = this.HVAC_ORDER.filter(h => byHvac[h]).map(h => ({
+      y: byHvac[h].map(r => r.energy_cost_savings_50yr),
+      type: 'box', name: h, marker: { color: this.HVAC_COLORS[h] }
+    }));
+    Plotly.react('chart-lcca-savings', savingsTraces, this.layout({ yaxis: { title: '50yr Energy Cost Savings ($)', gridcolor: '#334155' }, height: 350, showlegend: false, shapes: [{ type: 'line', x0: -0.5, x1: this.HVAC_ORDER.length - 0.5, y0: 0, y1: 0, line: { color: '#fbbf24', dash: 'dash', width: 1 } }] }), this.PLOTLY_CFG);
+
+    // LCCA comparison: for the median scenario, show NPV across all 16 LCCAs
+    let comparisonId = null;
+    if (lccaRows.length) {
+      const sorted = [...lccaRows].sort((a, b) => (a.npv || 0) - (b.npv || 0));
+      comparisonId = sorted[Math.floor(sorted.length / 2)].scenario_id;
+    }
+    if (comparisonId != null) {
+      const allForScenario = lccaAll.filter(r => r.scenario_id === comparisonId);
+      const lccaIds = allForScenario.map(r => r.lcca_id).sort();
+      const lccaScenarios = this.data.lcca_scenarios || [];
+      const idToLabel = {};
+      for (const s of lccaScenarios) {
+        idToLabel[s.lcca_id] = (s.pv_generation === 'YES' ? 'PV' : 'No PV') + ', ' +
+          (s.dhw_heat_recovery === 'YES' ? 'DHW HR' : 'No HR') + ', ' +
+          s.window_type + ', ' +
+          (s.ventilation_hr === 'In-suite ERVs' ? 'ERV' : 'Central');
+      }
+      const compTrace = [{
+        x: lccaIds.map(id => idToLabel[id] || id),
+        y: lccaIds.map(id => { const r = allForScenario.find(r => r.lcca_id === id); return r ? r.npv : 0; }),
+        type: 'bar',
+        marker: { color: lccaIds.map(id => id === lccaId ? '#38bdf8' : '#475569') }
+      }];
+      Plotly.react('chart-lcca-compare', compTrace, this.layout({ yaxis: { title: 'NPV ($)', gridcolor: '#334155' }, height: 350, showlegend: false, xaxis: { tickangle: -45, gridcolor: '#334155' } }), this.PLOTLY_CFG);
+    } else {
+      Plotly.react('chart-lcca-compare', [], this.layout({ height: 350 }), this.PLOTLY_CFG);
+    }
+
+    // Named reference table
+    const tableEl = document.getElementById('lcca-ref-table');
+    if (lccaNamed.length) {
+      let html = '<table><thead><tr><th>Description</th><th>Project Cost</th><th>Baseline Cost</th><th>Incremental Cost</th><th>NPV</th><th>Energy Cost/yr</th><th>50yr Savings</th></tr></thead><tbody>';
+      for (const r of lccaNamed) {
+        html += `<tr><td>${r.description}</td><td>${this.fmt$(r.project_cost || 0)}</td><td>${this.fmt$(r.baseline_cost || 0)}</td><td>${this.fmt$(r.incremental_cost || 0)}</td><td>${this.fmt$(r.npv || 0)}</td><td>${this.fmt$(r.energy_cost_first_year || 0)}</td><td>${this.fmt$(r.energy_cost_savings_50yr || 0)}</td></tr>`;
+      }
+      html += '</tbody></table>';
+      tableEl.innerHTML = html;
+    } else {
+      tableEl.innerHTML = '<p style="color:var(--text-dim);padding:8px">No named reference scenarios for this LCCA.</p>';
+    }
+  },
+
+  // ---- Tab 4: SQL ----
+  bindSql() {
+    document.getElementById('sql-examples').addEventListener('change', e => {
+      if (e.target.value) document.getElementById('sql-input').value = e.target.value;
+    });
+    document.getElementById('btn-run').addEventListener('click', () => this.runSql());
+    document.getElementById('btn-csv').addEventListener('click', () => this.downloadCsv());
+    document.getElementById('sql-input').addEventListener('keydown', e => {
+      if (e.ctrlKey && e.key === 'Enter') { e.preventDefault(); this.runSql(); }
+    });
+  },
+
+  async initSql() {
+    const status = document.getElementById('sql-status');
+    const browser = document.getElementById('schema-browser');
+    status.textContent = 'Loading SQL engine...';
+    browser.innerHTML = '<h4>Schema</h4><div class="loading"><div class="spinner"></div>Loading...</div>';
+
+    try {
+      // Load sql.js from CDN
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://sql.js.org/dist/sql-wasm.js';
+        s.onload = resolve; s.onerror = reject;
+        document.head.appendChild(s);
+      });
+
+      const [SQL, buf] = await Promise.all([
+        initSqlJs({ locateFile: f => 'https://sql.js.org/dist/' + f }),
+        fetch('murb.db').then(r => r.arrayBuffer())
+      ]);
+
+      this.state.db = new SQL.Database(new Uint8Array(buf));
+      this.state.sqlReady = true;
+      status.textContent = 'Ready. Enter a query and click Run.';
+
+      // Build schema browser
+      const tables = this.state.db.exec("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE '_%' ORDER BY name");
+      if (tables.length) {
+        let html = '<h4>Schema</h4>';
+        for (const row of tables[0].values) {
+          const tbl = row[0];
+          const cols = this.state.db.exec(`PRAGMA table_info([${tbl}])`);
+          html += `<details class="schema-table"><summary>${tbl}</summary>`;
+          if (cols.length) {
+            for (const c of cols[0].values) {
+              html += `<div class="col" data-insert="${tbl}.${c[1]}">${c[1]} <span style="color:var(--border)">${c[2]}</span></div>`;
+            }
+          }
+          html += '</details>';
+        }
+        browser.innerHTML = html;
+        browser.querySelectorAll('.col').forEach(el => {
+          el.addEventListener('click', () => {
+            const ta = document.getElementById('sql-input');
+            const pos = ta.selectionStart;
+            const val = ta.value;
+            const insert = el.dataset.insert;
+            ta.value = val.slice(0, pos) + insert + val.slice(pos);
+            ta.focus();
+            ta.selectionStart = ta.selectionEnd = pos + insert.length;
+          });
+        });
+      }
+    } catch (e) {
+      status.innerHTML = `<span style="color:var(--danger)">Failed to load SQL engine: ${e.message}</span>`;
+    }
+  },
+
+  runSql() {
+    if (!this.state.sqlReady) return;
+    const sql = document.getElementById('sql-input').value.trim();
+    if (!sql) return;
+    const status = document.getElementById('sql-status');
+    const output = document.getElementById('sql-output');
+    const csvBtn = document.getElementById('btn-csv');
+    const t0 = performance.now();
+
+    try {
+      const results = this.state.db.exec(sql);
+      const ms = (performance.now() - t0).toFixed(1);
+
+      if (!results.length) {
+        status.textContent = `Query executed in ${ms}ms. No results returned.`;
+        output.innerHTML = '';
+        csvBtn.style.display = 'none';
+        this.state.lastSqlResults = null;
+        return;
+      }
+
+      const res = results[0];
+      const total = res.values.length;
+      const cap = 1000;
+      const display = res.values.slice(0, cap);
+      status.textContent = total > cap ? `${total} rows in ${ms}ms (showing first ${cap})` : `${total} rows in ${ms}ms`;
+
+      let html = '<table><thead><tr>' + res.columns.map(c => `<th>${c}</th>`).join('') + '</tr></thead><tbody>';
+      for (const row of display) {
+        html += '<tr>' + row.map(v => `<td>${v === null ? '<em>NULL</em>' : v}</td>`).join('') + '</tr>';
+      }
+      html += '</tbody></table>';
+      output.innerHTML = html;
+      csvBtn.style.display = '';
+
+      this.state.lastSqlResults = res;
+    } catch (e) {
+      status.innerHTML = '';
+      output.innerHTML = `<div class="sql-error">${e.message}</div>`;
+      csvBtn.style.display = 'none';
+      this.state.lastSqlResults = null;
+    }
+  },
+
+  downloadCsv() {
+    const res = this.state.lastSqlResults;
+    if (!res) return;
+    let csv = res.columns.join(',') + '\n';
+    for (const row of res.values) {
+      csv += row.map(v => {
+        if (v === null) return '';
+        const s = String(v);
+        return s.includes(',') || s.includes('"') || s.includes('\n') ? '"' + s.replace(/"/g, '""') + '"' : s;
+      }).join(',') + '\n';
+    }
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'query_results.csv';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  },
+
+  // ---- Card helper ----
+  makeCards(items) {
+    return items.map(c => `<div class="card"><div class="label">${c.label}</div><div class="value">${c.value}<span class="unit">${c.unit}</span></div></div>`).join('');
+  }
+};
+
+document.addEventListener('DOMContentLoaded', () => D.init());
+</script>
+</body>
+</html>

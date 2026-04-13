@@ -110,6 +110,7 @@ This opens a browser-based notebook with ready-made cells for browsing tables, r
 | `murb-db describe <table>` | Show columns and types for a table |
 | `murb-db query "<sql>"` | Run a SQL query and print results |
 | `murb-db schema-summary` | Print the full database schema (useful for AI tools) |
+| `murb-db export-dashboard` | Export data to `docs/` for the GitHub Pages dashboard |
 
 ---
 
@@ -164,6 +165,8 @@ ORDER BY total_cost;
 
 ```
 halifax-rdh-data/
+├── docs/                  ← Dashboard (HTML + data for GitHub Pages)
+├── .github/workflows/     ← GitHub Actions for Pages deployment
 ├── excel_sheets/          ← Put your Excel workbooks here (not uploaded to GitHub)
 ├── data/
 │   ├── raw/               ← For any raw data files
@@ -191,6 +194,30 @@ halifax-rdh-data/
 
 **"File already ingested, use --force"**
 → The file was already loaded. Use `murb-db ingest-rdh "file.xlsx" --force` to reload
+
+---
+
+## Interactive Dashboard
+
+An interactive web dashboard is available at **https://maxpr1me.github.io/halifax-rdh-data/** — no installation required.
+
+The dashboard includes:
+- **Energy Comparison** — scatter plots, box plots, and stacked bars comparing TEUI, GHGI, and end-use breakdowns across HVAC systems
+- **Cost Optimization** — Pareto charts showing cost vs. energy performance trade-offs, cost breakdowns by system
+- **LCCA Explorer** — life-cycle cost analysis with toggle controls for PV, DHW heat recovery, window type, and ventilation options
+- **SQL Query** — run your own SQL queries against the full database directly in the browser
+
+Use the sidebar filters to narrow results by HVAC system, DHW type, wall insulation, window type, airtightness, and demand scenario.
+
+### Updating the Dashboard
+
+After re-ingesting data or changing parsers, regenerate the dashboard data:
+
+```
+murb-db export-dashboard
+```
+
+This updates `docs/data.json` and `docs/murb.db`. Commit and push the `docs/` folder to deploy.
 
 ---
 

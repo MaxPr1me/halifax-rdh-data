@@ -131,6 +131,15 @@ def ingest_rdh(file_path, force):
         click.echo("No new data ingested.")
 
 
+@cli.command("export-dashboard")
+def export_dashboard():
+    """Export data to docs/ for the GitHub Pages dashboard."""
+    from murb_db.export_dashboard import export_all
+
+    click.echo("Exporting dashboard data...")
+    export_all()
+
+
 @cli.command("schema-summary")
 def schema_summary():
     """Print a full schema summary (designed for AI consumption)."""
