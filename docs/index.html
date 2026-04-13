@@ -98,6 +98,7 @@ html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Sego
 .sql-controls button { padding: 6px 16px; font-size: 12px; font-weight: 600; border: none; border-radius: 4px; cursor: pointer; white-space: nowrap; }
 .btn-run { background: var(--accent); color: var(--bg); }
 .btn-run:hover { opacity: .9; }
+.btn-run:disabled { opacity: .4; cursor: default; }
 .btn-csv { background: var(--surface2); color: var(--text); border: 1px solid var(--border) !important; }
 #sql-input { width: 100%; min-height: 100px; padding: 10px; font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 13px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; resize: vertical; }
 .sql-status { font-size: 12px; color: var(--text-dim); }
@@ -191,25 +192,47 @@ html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Sego
     <!-- Tab 4: SQL -->
     <div class="tab-content" id="tab-sql">
       <div class="sql-layout">
-        <div class="schema-browser" id="schema-browser"><h4>Schema</h4><div class="loading"><div class="spinner"></div>Load SQL tab first</div></div>
+        <div class="schema-browser" id="schema-browser"><h4>Schema</h4><p style="color:var(--text-dim);font-size:12px;padding:4px">Click the SQL Query tab to load the engine.</p></div>
         <div class="sql-main">
           <div class="sql-controls">
             <select id="sql-examples">
               <option value="">-- Example queries --</option>
               <option value="SELECT heating_cooling_system, ROUND(AVG(teui_adjusted_kwh_m2a), 1) AS avg_teui, ROUND(AVG(ghgi_kg_co2e_m2a), 1) AS avg_ghgi FROM energy_scenarios GROUP BY heating_cooling_system ORDER BY avg_teui">Avg TEUI &amp; GHGI by HVAC</option>
               <option value="SELECT heating_cooling_system, demand_scenario, walls, windows, airtightness, ROUND(total_cost) AS cost, ROUND(teui_adjusted_kwh_m2a, 1) AS teui FROM energy_scenarios ORDER BY total_cost LIMIT 20">Cheapest 20 scenarios</option>
-              <option value="SELECT heating_cooling_system, dhw_system_type, walls, windows, airtightness, ROUND(teui_adjusted_kwh_m2a, 1) AS teui, ROUND(ghgi_kg_co2e_m2a, 1) AS ghgi FROM energy_scenarios WHERE ghgi_kg_co2e_m2a < 15 ORDER BY ghgi_kg_co2e_m2a">Lowest GHG scenarios (&lt;15)</option>
-              <option value="SELECT l.lcca_id, e.heating_cooling_system, MIN(l.npv) AS best_npv, ROUND(AVG(l.energy_cost_savings_50yr)) AS avg_savings FROM lcca_results l JOIN energy_scenarios e ON CAST(l.description AS INTEGER) = e.scenario_id WHERE l.scenario_id IS NOT NULL GROUP BY l.lcca_id, e.heating_cooling_system ORDER BY l.lcca_id, best_npv DESC">Best NPV per HVAC per LCCA</option>
+              <option value="SELECT heating_cooling_system, dhw_system_type, walls, windows, airtightness, ROUND(teui_adjusted_kwh_m2a, 1) AS teui, ROUND(ghgi_kg_co2e_m2a, 1) AS ghgi FROM energy_scenarios WHERE ghgi_kg_co2e_m2a &lt; 15 ORDER BY ghgi_kg_co2e_m2a">Lowest GHG scenarios (&lt;15)</option>
               <option value="SELECT * FROM building_info">Building info</option>
               <option value="SELECT * FROM lcca_assumptions">LCCA assumptions</option>
               <option value="SELECT name, sql FROM sqlite_master WHERE type='table' AND name NOT LIKE '_%' ORDER BY name">Full schema DDL</option>
             </select>
-            <button class="btn-run" id="btn-run">Run (Ctrl+Enter)</button>
-            <button class="btn-csv btn-run" id="btn-csv" style="display:none">Download CSV</button>
+            <button class="btn-run" id="btn-run" disabled>Run (Ctrl+Enter)</button>
+            <button class="btn-csv" id="btn-csv" style="display:none">Download CSV</button>
           </div>
-          <textarea id="sql-input" placeholder="Enter SQL query...">SELECT heating_cooling_system, ROUND(AVG(teui_adjusted_kwh_m2a), 1) AS avg_teui, ROUND(AVG(ghgi_kg_co2e_m2a), 1) AS avg_ghgi FROM energy_scenarios GROUP BY heating_cooling_system ORDER BY avg_teui</textarea>
-          <div id="sql-status" class="sql-status"></div>
+          <textarea id="sql-input" placeholder="Enter SQL query..." disabled>SELECT heating_cooling_system, ROUND(AVG(teui_adjusted_kwh_m2a), 1) AS avg_teui, ROUND(AVG(ghgi_kg_co2e_m2a), 1) AS avg_ghgi FROM energy_scenarios GROUP BY heating_cooling_system ORDER BY avg_teui</textarea>
+          <div id="sql-status" class="sql-status">Loading SQL engine...</div>
           <div id="sql-output" class="sql-results" style="max-height: 500px; overflow-y: auto;"></div>
+          <div id="sql-chart-controls" style="display:none;margin-top:12px;padding:12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;">
+            <h4 style="font-size:13px;font-weight:600;color:var(--text-dim);margin-bottom:8px;">Plot Results</h4>
+            <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+              <div style="display:flex;flex-direction:column;gap:3px;">
+                <label style="font-size:11px;color:var(--text-dim);text-transform:uppercase;">X Axis</label>
+                <select id="sql-chart-x" style="padding:5px 8px;font-size:12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;min-width:140px;"></select>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:3px;">
+                <label style="font-size:11px;color:var(--text-dim);text-transform:uppercase;">Y Axis</label>
+                <select id="sql-chart-y" style="padding:5px 8px;font-size:12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;min-width:140px;"></select>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:3px;">
+                <label style="font-size:11px;color:var(--text-dim);text-transform:uppercase;">Chart Type</label>
+                <select id="sql-chart-type" style="padding:5px 8px;font-size:12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;">
+                  <option value="scatter">Scatter</option>
+                  <option value="bar">Bar</option>
+                  <option value="line">Line</option>
+                </select>
+              </div>
+              <button id="btn-plot" class="btn-run" style="padding:6px 16px;font-size:12px;">Plot</button>
+            </div>
+          </div>
+          <div id="sql-chart" style="margin-top:12px;"></div>
         </div>
       </div>
     </div>
@@ -354,7 +377,8 @@ const D = {
         this.state.tab = tab;
         // Show/hide sidebar for SQL tab
         document.getElementById('sidebar').style.display = tab === 'sql' ? 'none' : '';
-        if (tab === 'sql' && !this.state.sqlReady) this.initSql();
+        document.querySelector('.dashboard').style.gridTemplateColumns = tab === 'sql' ? '1fr' : 'var(--sidebar-w) 1fr';
+        if (tab === 'sql' && !this.state.sqlReady && !D._sqlLoading) this.initSql();
         this.renderActiveTab();
       });
     });
@@ -652,72 +676,102 @@ const D = {
   },
 
   // ---- Tab 4: SQL ----
+  _sqlLoading: false,
+
   bindSql() {
     document.getElementById('sql-examples').addEventListener('change', e => {
       if (e.target.value) document.getElementById('sql-input').value = e.target.value;
     });
     document.getElementById('btn-run').addEventListener('click', () => this.runSql());
     document.getElementById('btn-csv').addEventListener('click', () => this.downloadCsv());
+    document.getElementById('btn-plot').addEventListener('click', () => this.plotSqlChart());
     document.getElementById('sql-input').addEventListener('keydown', e => {
       if (e.ctrlKey && e.key === 'Enter') { e.preventDefault(); this.runSql(); }
     });
   },
 
   async initSql() {
+    if (this._sqlLoading || this.state.sqlReady) return;
+    this._sqlLoading = true;
+
     const status = document.getElementById('sql-status');
     const browser = document.getElementById('schema-browser');
-    status.textContent = 'Loading SQL engine...';
+    status.innerHTML = '<span class="spinner" style="display:inline-block;width:14px;height:14px;vertical-align:middle;margin-right:6px;border-width:2px;"></span>Loading SQL engine (downloading ~1 MB WASM + 3.4 MB database)...';
     browser.innerHTML = '<h4>Schema</h4><div class="loading"><div class="spinner"></div>Loading...</div>';
 
+    const SQL_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.11.0';
+
     try {
-      // Load sql.js from CDN
+      // Load sql.js script
       await new Promise((resolve, reject) => {
         const s = document.createElement('script');
-        s.src = 'https://sql.js.org/dist/sql-wasm.js';
-        s.onload = resolve; s.onerror = reject;
+        s.src = SQL_CDN + '/sql-wasm.min.js';
+        s.onload = resolve;
+        s.onerror = () => reject(new Error('Failed to load sql.js script from CDN'));
         document.head.appendChild(s);
       });
 
+      // Init WASM and fetch DB in parallel
       const [SQL, buf] = await Promise.all([
-        initSqlJs({ locateFile: f => 'https://sql.js.org/dist/' + f }),
-        fetch('murb.db').then(r => r.arrayBuffer())
+        initSqlJs({ locateFile: () => SQL_CDN + '/sql-wasm.wasm' }),
+        fetch('murb.db').then(r => {
+          if (!r.ok) throw new Error('Failed to fetch murb.db: ' + r.status);
+          return r.arrayBuffer();
+        })
       ]);
 
       this.state.db = new SQL.Database(new Uint8Array(buf));
       this.state.sqlReady = true;
-      status.textContent = 'Ready. Enter a query and click Run.';
+
+      // Enable controls
+      document.getElementById('btn-run').disabled = false;
+      document.getElementById('sql-input').disabled = false;
+      status.textContent = 'Ready. Enter a query and press Run (Ctrl+Enter).';
 
       // Build schema browser
-      const tables = this.state.db.exec("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE '_%' ORDER BY name");
-      if (tables.length) {
-        let html = '<h4>Schema</h4>';
-        for (const row of tables[0].values) {
-          const tbl = row[0];
-          const cols = this.state.db.exec(`PRAGMA table_info([${tbl}])`);
-          html += `<details class="schema-table"><summary>${tbl}</summary>`;
-          if (cols.length) {
-            for (const c of cols[0].values) {
-              html += `<div class="col" data-insert="${tbl}.${c[1]}">${c[1]} <span style="color:var(--border)">${c[2]}</span></div>`;
-            }
-          }
-          html += '</details>';
-        }
-        browser.innerHTML = html;
-        browser.querySelectorAll('.col').forEach(el => {
-          el.addEventListener('click', () => {
-            const ta = document.getElementById('sql-input');
-            const pos = ta.selectionStart;
-            const val = ta.value;
-            const insert = el.dataset.insert;
-            ta.value = val.slice(0, pos) + insert + val.slice(pos);
-            ta.focus();
-            ta.selectionStart = ta.selectionEnd = pos + insert.length;
-          });
-        });
-      }
+      this._buildSchemaBrowser();
+
+      // Auto-run the default example query
+      this.runSql();
+
     } catch (e) {
-      status.innerHTML = `<span style="color:var(--danger)">Failed to load SQL engine: ${e.message}</span>`;
+      status.innerHTML = '<span style="color:var(--danger)">Failed to load SQL engine: ' + e.message + '</span><br><span style="font-size:11px;color:var(--text-dim)">Try refreshing the page. If the issue persists, your browser may be blocking WASM downloads.</span>';
+      browser.innerHTML = '<h4>Schema</h4><p style="color:var(--danger);font-size:12px">Load failed</p>';
+      this._sqlLoading = false;
     }
+  },
+
+  _buildSchemaBrowser() {
+    const browser = document.getElementById('schema-browser');
+    const tables = this.state.db.exec("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE '_%' ORDER BY name");
+    if (!tables.length) { browser.innerHTML = '<h4>Schema</h4><p style="color:var(--text-dim);font-size:12px">No tables found</p>'; return; }
+
+    let html = '<h4>Schema</h4><p style="font-size:11px;color:var(--text-dim);margin-bottom:8px">Click a column to insert into query</p>';
+    for (const row of tables[0].values) {
+      const tbl = row[0];
+      const countRes = this.state.db.exec('SELECT COUNT(*) FROM [' + tbl + ']');
+      const cnt = countRes.length ? countRes[0].values[0][0] : '?';
+      const cols = this.state.db.exec('PRAGMA table_info([' + tbl + '])');
+      html += '<details class="schema-table"><summary>' + tbl + ' <span style="color:var(--text-dim);font-weight:400;font-size:10px">(' + cnt + ')</span></summary>';
+      if (cols.length) {
+        for (const c of cols[0].values) {
+          html += '<div class="col" data-insert="' + c[1] + '">' + c[1] + ' <span style="color:var(--border)">' + c[2] + '</span></div>';
+        }
+      }
+      html += '</details>';
+    }
+    browser.innerHTML = html;
+    browser.querySelectorAll('.col').forEach(el => {
+      el.addEventListener('click', () => {
+        const ta = document.getElementById('sql-input');
+        const pos = ta.selectionStart;
+        const val = ta.value;
+        const ins = el.dataset.insert;
+        ta.value = val.slice(0, pos) + ins + val.slice(pos);
+        ta.focus();
+        ta.selectionStart = ta.selectionEnd = pos + ins.length;
+      });
+    });
   },
 
   runSql() {
@@ -727,6 +781,8 @@ const D = {
     const status = document.getElementById('sql-status');
     const output = document.getElementById('sql-output');
     const csvBtn = document.getElementById('btn-csv');
+    const chartControls = document.getElementById('sql-chart-controls');
+    const chartDiv = document.getElementById('sql-chart');
     const t0 = performance.now();
 
     try {
@@ -734,9 +790,11 @@ const D = {
       const ms = (performance.now() - t0).toFixed(1);
 
       if (!results.length) {
-        status.textContent = `Query executed in ${ms}ms. No results returned.`;
+        status.textContent = 'Query executed in ' + ms + 'ms. No results returned.';
         output.innerHTML = '';
         csvBtn.style.display = 'none';
+        chartControls.style.display = 'none';
+        Plotly.purge(chartDiv);
         this.state.lastSqlResults = null;
         return;
       }
@@ -745,23 +803,81 @@ const D = {
       const total = res.values.length;
       const cap = 1000;
       const display = res.values.slice(0, cap);
-      status.textContent = total > cap ? `${total} rows in ${ms}ms (showing first ${cap})` : `${total} rows in ${ms}ms`;
+      status.textContent = (total > cap ? total + ' rows in ' + ms + 'ms (showing first ' + cap + ')' : total + ' rows in ' + ms + 'ms');
 
-      let html = '<table><thead><tr>' + res.columns.map(c => `<th>${c}</th>`).join('') + '</tr></thead><tbody>';
+      let html = '<table><thead><tr>' + res.columns.map(c => '<th>' + c + '</th>').join('') + '</tr></thead><tbody>';
       for (const row of display) {
-        html += '<tr>' + row.map(v => `<td>${v === null ? '<em>NULL</em>' : v}</td>`).join('') + '</tr>';
+        html += '<tr>' + row.map(v => '<td>' + (v === null ? '<em>NULL</em>' : String(v)) + '</td>').join('') + '</tr>';
       }
       html += '</tbody></table>';
       output.innerHTML = html;
       csvBtn.style.display = '';
 
       this.state.lastSqlResults = res;
+
+      // Populate chart column selectors if >=2 columns
+      if (res.columns.length >= 2) {
+        const xSel = document.getElementById('sql-chart-x');
+        const ySel = document.getElementById('sql-chart-y');
+        xSel.innerHTML = ''; ySel.innerHTML = '';
+        for (const col of res.columns) {
+          xSel.innerHTML += '<option value="' + col + '">' + col + '</option>';
+          ySel.innerHTML += '<option value="' + col + '">' + col + '</option>';
+        }
+        // Default: first col = X, second col = Y
+        xSel.value = res.columns[0];
+        ySel.value = res.columns[1];
+        // Auto-select bar chart if X looks categorical (first value is not a number)
+        const firstX = res.values[0] ? res.values[0][0] : null;
+        const typeSelect = document.getElementById('sql-chart-type');
+        typeSelect.value = (typeof firstX === 'string' || firstX === null) ? 'bar' : 'scatter';
+        chartControls.style.display = '';
+      } else {
+        chartControls.style.display = 'none';
+      }
+      Plotly.purge(chartDiv);
+
     } catch (e) {
       status.innerHTML = '';
-      output.innerHTML = `<div class="sql-error">${e.message}</div>`;
+      output.innerHTML = '<div class="sql-error">' + e.message + '</div>';
       csvBtn.style.display = 'none';
+      chartControls.style.display = 'none';
       this.state.lastSqlResults = null;
     }
+  },
+
+  plotSqlChart() {
+    const res = this.state.lastSqlResults;
+    if (!res) return;
+
+    const xCol = document.getElementById('sql-chart-x').value;
+    const yCol = document.getElementById('sql-chart-y').value;
+    const chartType = document.getElementById('sql-chart-type').value;
+    const xIdx = res.columns.indexOf(xCol);
+    const yIdx = res.columns.indexOf(yCol);
+    if (xIdx < 0 || yIdx < 0) return;
+
+    const xData = res.values.map(r => r[xIdx]);
+    const yData = res.values.map(r => r[yIdx]);
+
+    const trace = { x: xData, y: yData, name: yCol };
+    if (chartType === 'scatter') {
+      trace.type = 'scattergl'; trace.mode = 'markers';
+      trace.marker = { color: '#38bdf8', opacity: 0.7, size: 7 };
+    } else if (chartType === 'bar') {
+      trace.type = 'bar';
+      trace.marker = { color: '#38bdf8' };
+    } else {
+      trace.type = 'scattergl'; trace.mode = 'lines+markers';
+      trace.line = { color: '#38bdf8', width: 2 };
+      trace.marker = { color: '#38bdf8', size: 5 };
+    }
+
+    Plotly.react('sql-chart', [trace], this.layout({
+      xaxis: { title: xCol, gridcolor: '#334155' },
+      yaxis: { title: yCol, gridcolor: '#334155' },
+      height: 380
+    }), this.PLOTLY_CFG);
   },
 
   downloadCsv() {
