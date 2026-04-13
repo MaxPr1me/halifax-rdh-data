@@ -1,0 +1,23 @@
+# Schema Mappings
+# ===============
+# Define how Excel sheets map to database tables.
+# Without mappings, each sheet becomes its own table named: {file_stem}__{sheet_name}
+#
+# Example:
+# mappings:
+#   - file_pattern: "*.xlsx"
+#     sheet_name: "Building Info"
+#     target_table: "buildings"
+#     column_map:
+#       bldg_id: building_id
+#       bldg_name: name
+#     primary_key: building_id
+#
+#   - file_pattern: "energy_*.xlsx"
+#     sheet_name: "Annual Results"
+#     target_table: "energy_results"
+#     column_map:
+#       total_kwh: total_energy_kwh
+
+# Uncomment and edit below when you know your sheet structure:
+# mappings: []

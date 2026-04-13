@@ -1,0 +1,21 @@
+# Data files
+data/raw/*.xlsx
+data/raw/*.xls
+data/processed/*.db
+data/processed/*.sqlite
+excel_sheets/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+dist/
+*.egg-info/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# IDE
+.vscode/
+.idea/
