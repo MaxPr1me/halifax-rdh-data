@@ -251,6 +251,8 @@ const D = {
   },
   HVAC_ORDER: ['FCU', 'FCU+', 'PTHP', 'ASHP', 'GSHP', 'VRF', 'WLHP', 'WLHP+'],
   FILTER_LABELS: {
+    necb_2020_ref_tier: 'NECB 2020 Tier (Reference)',
+    necb_2025_eui_tier: 'NECB 2025 EUI Tier',
     heating_cooling_system: 'HVAC System',
     demand_scenario: 'Demand Scenario',
     dhw_system_type: 'DHW System',
@@ -258,7 +260,7 @@ const D = {
     windows: 'Window Type',
     airtightness: 'Airtightness'
   },
-  FILTER_ORDER: ['heating_cooling_system', 'demand_scenario', 'dhw_system_type', 'walls', 'windows', 'airtightness'],
+  FILTER_ORDER: ['necb_2020_ref_tier', 'necb_2025_eui_tier', 'heating_cooling_system', 'demand_scenario', 'dhw_system_type', 'walls', 'windows', 'airtightness'],
   PLOTLY_LAYOUT: { paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: '#0f172a', font: { color: '#e2e8f0', size: 11 }, margin: { l: 60, r: 20, t: 10, b: 50 }, xaxis: { gridcolor: '#334155', zerolinecolor: '#475569' }, yaxis: { gridcolor: '#334155', zerolinecolor: '#475569' }, legend: { bgcolor: 'rgba(0,0,0,0)', font: { size: 11 } } },
   PLOTLY_CFG: { responsive: true, displayModeBar: true, modeBarButtonsToRemove: ['lasso2d', 'select2d'], displaylogo: false },
 

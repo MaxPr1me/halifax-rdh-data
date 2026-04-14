@@ -23,6 +23,7 @@ import sqlite3
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+import numpy as np
 import pandas as pd
 
 from murb_db.ingest import clean_column_name, compute_file_hash
@@ -46,7 +47,7 @@ def _record_source(conn: sqlite3.Connection, file_path: str, file_hash: str,
 # Column mapping for Energy Results section 2 (row 19 = headers, data starts row 20)
 _ENERGY_COLS = {
     0: "scenario_id",
-    1: "tier",
+    1: "necb_2020_ref_tier",
     2: "pct_energy_savings",
     3: "reference_model",
     5: "hvac_system",
@@ -339,6 +340,21 @@ def parse_energy_results(xls: pd.ExcelFile) -> Tuple[pd.DataFrame, pd.DataFrame]
                 cost = hvac_cost_map.get((sys_key, dem_key))
                 if cost is not None:
                     ref_df.loc[idx, "heating_cooling_system_cost"] = cost
+
+    # Convert reference tier to display labels
+    if "necb_2020_ref_tier" in scenarios_df.columns:
+        scenarios_df["necb_2020_ref_tier"] = scenarios_df["necb_2020_ref_tier"].apply(
+            lambda x: f"Tier {int(x)}" if pd.notna(x) else None
+        )
+
+    # Compute NECB 2025 EUI Path tier from TEUI thresholds
+    if "teui_adjusted_kwh_m2a" in scenarios_df.columns:
+        teui = scenarios_df["teui_adjusted_kwh_m2a"]
+        scenarios_df["necb_2025_eui_tier"] = np.select(
+            [teui <= 90, teui <= 112.5, teui <= 168.75, teui <= 225],
+            ["Tier 4", "Tier 3", "Tier 2", "Tier 1"],
+            default="Below Tier 1",
+        )
 
     return scenarios_df, ref_df
 

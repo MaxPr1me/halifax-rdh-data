@@ -28,6 +28,8 @@ DROP_COLS = {"_source_id", "lcca_row"}
 
 # Filter dimensions in energy_scenarios (used for metadata)
 FILTER_DIMS = [
+    "necb_2020_ref_tier",
+    "necb_2025_eui_tier",
     "heating_cooling_system",
     "demand_scenario",
     "dhw_system_type",
